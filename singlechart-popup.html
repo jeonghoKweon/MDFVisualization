@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 MDF Data Visualization - Single Chart</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; color: #333; height: 100vh; display: flex; flex-direction: column; }
+        .header { background: white; padding: 15px 20px; border-bottom: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .chart-container { flex: 1; padding: 20px; }
+        #chartDiv { width: 100%; height: 100%; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .controls { background: white; padding: 15px 20px; border-top: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .axis-controls { display: flex; align-items: center; gap: 10px; font-size: 0.9em; }
+        .axis-controls label { color: #6c757d; font-weight: 500; }
+        .axis-controls input { width: 80px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.85em; }
+        .chart-controls { display: flex; align-items: center; gap: 10px; }
+        .chart-controls button { background: #3498db; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-size: 0.9em; cursor: pointer; }
+        .chart-controls button:hover { background: #2980b9; }
+        .y-axis-setup-btn { background: #6c757d !important; }
+        .y-axis-dropdown { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: white; border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1000; min-width: 500px; max-width: 600px; max-height: 80vh; display: flex; flex-direction: column; }
+        .dropdown-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid #e9ecef; background: #f8f9fa; }
+        .dropdown-header h4 { color: #495057; font-size: 1em; margin: 0; }
+        .close-btn { background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 0.8em; cursor: pointer; }
+        .dropdown-content { padding: 15px; overflow-y: auto; }
+        .apply-btn { width: 100%; padding: 10px; margin-top: auto; background: #28a745; color: white; border: none; font-size: 1em; cursor: pointer; border-radius: 0 0 8px 8px; }
+        .apply-btn:hover { background: #218838; }
+        
+        /* Y축 설정 UI 스타일 */
+        .setup-section { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #eee; }
+        .setup-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .setup-section h5 { margin-bottom: 10px; color: #333; font-size: 1em; }
+        .range-control-item { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .range-control-item .axis-label { font-weight: bold; min-width: 110px; font-size: 0.9em; }
+        .range-control-item input { width: 80px; }
+        .range-control-item button { padding: 4px 10px; font-size: 0.8em; cursor: pointer; background: #6c757d; color: white; border: none; border-radius: 3px; }
+        .range-control-item button:hover { background: #5a6268; }
+        .channel-assignment-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f1f1; }
+        .channel-assignment-item:last-child { border-bottom: none; }
+        .channel-name { font-size: 0.9em; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .radio-group label { margin: 0 10px 0 3px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 MDF Data Visualization - Single Chart</h1>
+        <p id="headerInfo">Real-time measurement data visualization</p>
+    </div>
+    <div class="chart-container"><div id="chartDiv"><div class="loading">Loading chart data...</div></div></div>
+    <div class="controls">
+        <div class="axis-controls">
+            <label for="xMin">X Min:</label><input type="number" id="xMin" step="any" placeholder="Auto">
+            <label for="xMax">X Max:</label><input type="number" id="xMax" step="any" placeholder="Auto">
+            <button onclick="applyXAxisRange()" class="secondary">Apply X</button>
+            <button onclick="resetXAxisRange()" class="secondary">Reset X</button>
+        </div>
+        <div class="chart-controls">
+            <button onclick="toggleYAxisSetup()" class="y-axis-setup-btn">Y-Axis Setup</button>
+            <button onclick="resetZoom()">🔍 Reset Zoom</button>
+            <button onclick="exportChart()">💾 Export PNG</button>
+            <button onclick="window.close()">✖️ Close</button>
+        </div>
+    </div>
+    <div id="yAxisSetupDropdown" class="y-axis-dropdown" style="display: none;">
+        <div class="dropdown-header">
+            <h4>📊 Y-Axis Setup</h4><button onclick="toggleYAxisSetup()" class="close-btn">✖️</button>
+        </div>
+        <div class="dropdown-content" id="yAxisControlsContent"></div>
+        <button onclick="applyYAxisSetupChanges()" class="apply-btn">Apply Changes</button>
+    </div>
+
+    <script>
+        let globalChannelData = [];
+
+        // --- ⬇️ 모든 함수가 여기에 완전하게 정의되어 있습니다 ⬇️ ---
+
+        function getUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('sessionId');
+            const channelsStr = urlParams.get('channels');
+            let channelNames = [];
+            if (channelsStr) {
+                try {
+                    channelNames = JSON.parse(decodeURIComponent(channelsStr));
+                } catch (e) { console.error("Failed to parse channels from URL:", e); }
+            }
+            return { sessionId, channelNames };
+        }
+
+        async function fetchChartData(sessionId, channelNames) {
+            try {
+                const response = await fetch(`http://localhost:8000/api/data/${sessionId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(channelNames)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `Server error: ${response.status}`);
+                }
+                const data = await response.json();
+                return data.data;
+            } catch (error) {
+                console.error('Error fetching chart data:', error);
+                throw error;
+            }
+        }
+
+        function createChart(channelData) {
+            createSingleChart(channelData);
+            createYAxisSetupControls(channelData);
+            updateChartInfo(channelData);
+        }
+
+        function createSingleChart(channelData) {
+            const traces = channelData.map((data, index) => ({
+                x: data.timestamps, y: data.values, name: data.unit ? `${data.name} (${data.unit})` : data.name,
+                type: 'scatter', mode: 'lines', line: { width: 2 },
+                yaxis: index === 0 ? 'y' : 'y2'
+            }));
+            const layout = {
+                title: { text: 'MDF Measurement Data', font: { size: 18 } },
+                xaxis: { title: { text: 'Time (seconds)', font: { size: 16 } }, tickfont: { size: 14 } },
+                yaxis: { title: { text: 'Primary Value', font: { size: 16, color: '#1f77b4' } }, tickfont: { size: 14, color: '#1f77b4' } },
+                yaxis2: { title: { text: 'Secondary Value', font: { size: 16, color: '#ff7f0e' } }, tickfont: { size: 14, color: '#ff7f0e' }, side: 'right', overlaying: 'y', showgrid: false },
+                margin: { t: 60, r: 80, b: 80, l: 80 },
+                legend: { orientation: 'h', x: 0.5, y: -0.2, xanchor: 'center', font: { size: 12 } },
+                hovermode: 'x unified', showlegend: true
+            };
+            const config = { responsive: true, editable: true, displayModeBar: true };
+            Plotly.newPlot('chartDiv', traces, layout, config);
+        }
+
+        // --- ⬇️ 수정된 부분 ⬇️ ---
+        function createYAxisSetupControls(channelData) {
+            const controlsContainer = document.getElementById('yAxisControlsContent');
+            
+            // 섹션 1: 축 범위 제어
+            let rangeControlsHtml = `
+                <div class="setup-section">
+                    <h5>Axis Ranges</h5>
+                    <div class="range-control-item">
+                        <label class="axis-label" style="color: #1f77b4;">Primary (L):</label>
+                        <input type="number" id="primary-y-min" placeholder="Min">
+                        <input type="number" id="primary-y-max" placeholder="Max">
+                        <button onclick="resetAxisRange('yaxis', 'primary')">Reset</button>
+                    </div>
+                    <div class="range-control-item">
+                        <label class="axis-label" style="color: #ff7f0e;">Secondary (R):</label>
+                        <input type="number" id="secondary-y-min" placeholder="Min">
+                        <input type="number" id="secondary-y-max" placeholder="Max">
+                        <button onclick="resetAxisRange('yaxis2', 'secondary')">Reset</button>
+                    </div>
+                </div>`;
+
+            // 섹션 2: 채널 할당 제어
+            let assignmentControlsHtml = `<div class="setup-section"><h5>Channel Assignments</h5>`;
+            channelData.forEach((data, index) => {
+                const displayName = data.unit ? `${data.name} (${data.unit})` : data.name;
+                assignmentControlsHtml += `
+                    <div class="channel-assignment-item" data-channel-index="${index}">
+                        <span class="channel-name" title="${displayName}">${displayName}</span>
+                        <div class="radio-group">
+                            <input type="radio" id="primary-${index}" name="axis-${index}" value="y" ${index === 0 ? 'checked' : ''}>
+                            <label for="primary-${index}">Primary</label>
+                            <input type="radio" id="secondary-${index}" name="axis-${index}" value="y2" ${index !== 0 ? 'checked' : ''}>
+                            <label for="secondary-${index}">Secondary</label>
+                        </div>
+                    </div>`;
+            });
+            assignmentControlsHtml += `</div>`;
+            controlsContainer.innerHTML = rangeControlsHtml + assignmentControlsHtml;
+        }
+
+        // --- ⬇️ 추가된 함수 ⬇️ ---
+        function resetAxisRange(axisKey, prefix) {
+            document.getElementById(`${prefix}-y-min`).value = '';
+            document.getElementById(`${prefix}-y-max`).value = '';
+            Plotly.relayout('chartDiv', { [`${axisKey}.autorange`]: true });
+        }
+        
+        function applyYAxisSetupChanges() {
+            if (!globalChannelData || globalChannelData.length === 0) return;
+
+            const newLayout = JSON.parse(JSON.stringify(document.getElementById('chartDiv').layout));
+            const pMin = document.getElementById('primary-y-min').value;
+            const pMax = document.getElementById('primary-y-max').value;
+            const sMin = document.getElementById('secondary-y-min').value;
+            const sMax = document.getElementById('secondary-y-max').value;
+
+            newLayout.yaxis.autorange = (pMin === '' && pMax === '');
+            newLayout.yaxis.range = [ pMin === '' ? null : parseFloat(pMin), pMax === '' ? null : parseFloat(pMax) ];
+            newLayout.yaxis2.autorange = (sMin === '' && sMax === '');
+            newLayout.yaxis2.range = [ sMin === '' ? null : parseFloat(sMin), sMax === '' ? null : parseFloat(sMax) ];
+            
+            const newTraces = [];
+            document.querySelectorAll('.channel-assignment-item').forEach(control => {
+                const index = parseInt(control.dataset.channelIndex, 10);
+                const selectedAxis = control.querySelector('input[type="radio"]:checked').value;
+                const data = globalChannelData[index];
+                const displayName = data.unit ? `${data.name} (${data.unit})` : data.name;
+                const originalTrace = document.getElementById('chartDiv').data.find(t => t.name === displayName);
+                if (originalTrace) {
+                    const newTrace = { ...originalTrace };
+                    newTrace.yaxis = selectedAxis;
+                    newTraces.push(newTrace);
+                }
+            });
+            
+            Plotly.react('chartDiv', newTraces, newLayout);
+            toggleYAxisSetup();
+        }
+
+        function toggleYAxisSetup() {
+            const dropdown = document.getElementById('yAxisSetupDropdown');
+            dropdown.style.display = (dropdown.style.display === 'none' || dropdown.style.display === '') ? 'block' : 'none';
+        }
+
+        function updateChartInfo(channelData) {
+            const channelCount = channelData.length;
+            const totalDataPoints = channelData.reduce((sum, data) => sum + data.values.length, 0);
+            document.getElementById('headerInfo').textContent = `${channelCount} channels • ${totalDataPoints.toLocaleString()} data points`;
+        }
+        
+        function resetZoom() {
+            const update = {
+                'xaxis.autorange': true,
+                'yaxis.autorange': true,
+                'yaxis2.autorange': true,
+                // 수동으로 설정된 범위를 명확하게 제거하여 초기화합니다.
+                'xaxis.range': null,
+                'yaxis.range': null,
+                'yaxis2.range': null
+            };
+            Plotly.relayout('chartDiv', update);
+        }
+
+        function applyXAxisRange() {
+            const xMin = document.getElementById('xMin').value;
+            const xMax = document.getElementById('xMax').value;
+            if (xMin !== '' && xMax !== '' && parseFloat(xMin) >= parseFloat(xMax)) {
+                alert('X Min 값은 X Max 값보다 작아야 합니다.'); return;
+            }
+            Plotly.relayout('chartDiv', { 'xaxis.autorange': false, 'xaxis.range': [xMin === '' ? null : xMin, xMax === '' ? null : xMax] });
+        }
+
+        function resetXAxisRange() {
+            document.getElementById('xMin').value = '';
+            document.getElementById('xMax').value = '';
+            Plotly.relayout('chartDiv', { 'xaxis.autorange': true });
+        }
+        
+        function exportChart() {
+            Plotly.downloadImage('chartDiv', { format: 'png', filename: 'mdf_chart' });
+        }
+        
+        function showError(message) {
+            const chartDiv = document.getElementById('chartDiv');
+            if (chartDiv) {
+                chartDiv.innerHTML = `<div class="error">❌ Error: ${message}</div>`;
+            }
+        }
+
+        window.onload = async function() {
+            try {
+                const { sessionId, channelNames } = getUrlParams();
+                if (!sessionId || !channelNames || channelNames.length === 0) {
+                    throw new Error('URL에 필수 정보가 없습니다.');
+                }
+                const channelData = await fetchChartData(sessionId, channelNames);
+                if (!channelData || channelData.length === 0) {
+                    throw new Error('서버에서 데이터를 받지 못했습니다.');
+                }
+                globalChannelData = channelData;
+                createChart(globalChannelData);
+            } catch (error) {
+                console.error('Chart initialization failed:', error);
+                showError(error.message);
+            }
+        };
+
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('yAxisSetupDropdown');
+            const setupButton = document.querySelector('.y-axis-setup-btn');
+            if (dropdown && dropdown.style.display === 'block' && !dropdown.contains(event.target) && !setupButton.contains(event.target)) {
+                toggleYAxisSetup();
+            }
+        });
+    </script>
+</body>
+</html>

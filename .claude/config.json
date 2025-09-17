@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "git": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-git@latest"],
+      "env": {},
+      "description": "Git repository management and operations for MDF File Viewer project"
+    }
+  }
+}

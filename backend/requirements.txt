@@ -1,0 +1,46 @@
+# ==================================================================
+# MDF File Viewer - Python Dependencies
+# ==================================================================
+#
+# Installation:
+#   pip install -r requirements.txt
+#
+# For development environment:
+#   pip install -r requirements.txt
+#   (All dependencies including testing tools will be installed)
+#
+# For production environment (minimal):
+#   pip install fastapi uvicorn python-multipart pydantic numpy python-dateutil asammdf gunicorn python-dotenv
+#
+# ==================================================================
+
+# Core FastAPI dependencies (Required)
+fastapi==0.104.1          # Modern, fast web framework for building APIs
+uvicorn[standard]==0.24.0  # Lightning-fast ASGI server implementation
+python-multipart==0.0.6   # Multipart form data support for file uploads
+
+# Data validation and processing (Required)
+pydantic==2.5.0           # Data validation using Python type annotations
+numpy==1.24.3             # Fundamental package for scientific computing
+python-dateutil==2.8.2    # Extensions to the standard Python datetime module
+
+# MDF file processing (Optional but recommended for real MDF files)
+asammdf==7.3.16           # Library for reading/writing ASAM MDF files
+                          # Note: Without this, app runs in simulation mode
+
+# Production deployment dependencies (Optional for development)
+gunicorn==21.2.0          # Python WSGI HTTP Server for UNIX (production)
+python-dotenv==1.0.0      # Load environment variables from .env file
+
+# Development and testing dependencies (Optional)
+pytest==7.4.3            # Testing framework for Python
+pytest-asyncio==0.21.1   # Async testing support for pytest
+httpx==0.25.2             # HTTP client library for testing API endpoints
+
+# ==================================================================
+# Package Information:
+# - Total required packages: 6 (FastAPI + core dependencies)
+# - Optional MDF processing: 1 (asammdf)
+# - Production tools: 2 (gunicorn + python-dotenv)
+# - Development tools: 3 (pytest + extensions)
+# ==================================================================

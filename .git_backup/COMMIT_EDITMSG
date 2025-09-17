@@ -1,0 +1,11 @@
+Revert deployment configuration to local development setup
+
+- Remove Render deployment files (Procfile, render.yaml, wsgi.py)
+- Restore local development configuration in backend
+- Clean up production-specific environment settings
+- Update dependencies to development versions
+- Remove deployment scripts and runtime configurations
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>

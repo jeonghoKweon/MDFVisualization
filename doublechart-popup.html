@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 MDF Data Visualization - Multiple Charts</title>
+    
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"/>
+    <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; color: #333; height: 100vh; display: flex; flex-direction: column; }
+        .header { background: white; padding: 15px 20px; border-bottom: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header h1 { color: #2c3e50; font-size: 1.3em; }
+        .chart-grid-container { flex: 1; padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(550px, 1fr)); gap: 20px; overflow-y: auto; align-content: flex-start; }
+        .individual-chart-wrapper { background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .individual-chart { width: 100%; height: 400px; }
+        .controls { background: white; padding: 10px 20px; border-top: 1px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .channel-selector-wrapper { display: flex; align-items: center; gap: 8px; min-width: 300px; }
+        .channel-selector-wrapper label { font-weight: 500; font-size: 0.9em; }
+        .axis-controls { display: flex; align-items: center; gap: 8px; font-size: 0.9em; }
+        .axis-controls label { font-weight: 500; }
+        .axis-controls input { width: 70px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .axis-controls button { padding: 4px 10px; font-size: 0.8em; cursor: pointer; background: #6c757d; color: white; border: none; border-radius: 3px; }
+        .chart-controls { display: flex; align-items: center; gap: 10px; }
+        .chart-controls button { background: #3498db; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-size: 0.9em; cursor: pointer; }
+        .export-btn { background-color: #27ae60 !important; }
+        .loading, .error { width: 100%; text-align: center; padding: 50px; font-size: 1.2em; grid-column: 1 / -1; }
+
+        /* ⬇️ 2. Choices.js 디자인을 한 줄 높이로 수정 ⬇️ */
+        .choices { min-width: 250px; }
+        .choices__inner {
+            min-height: auto;
+            padding: 3px 7px;
+            background-color: #fff;
+            border-radius: 4px;
+        }
+        .choices__list--multiple .choices__item {
+            background-color: #007bff;
+            border-color: #006fe6;
+            font-size: 0.9em;
+            margin-bottom: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header"><h1>📊 MDF Data Visualization - Multiple Charts</h1></div>
+    <div id="chartGrid" class="chart-grid-container"><div class="loading">Loading chart data...</div></div>
+    <div class="controls">
+        <div class="channel-selector-wrapper">
+            <label for="channelSelector">Apply Controls to:</label>
+            <select multiple id="channelSelector"></select>
+        </div>
+        <div class="axis-controls">
+            <label>X-Axis:</label>
+            <input type="number" id="xMin" step="any" placeholder="Min"><input type="number" id="xMax" step="any" placeholder="Max">
+            <button onclick="applyAxisRange('x')">Apply</button><button onclick="resetAxisRange('x')">Reset</button>
+        </div>
+        <div class="axis-controls">
+            <label>Y-Axis:</label>
+            <input type="number" id="yMin" step="any" placeholder="Min"><input type="number" id="yMax" step="any" placeholder="Max">
+            <button onclick="applyAxisRange('y')">Apply</button><button onclick="resetAxisRange('y')">Reset</button>
+        </div>
+        <div class="chart-controls">
+            <button onclick="exportSelectedCharts()" class="export-btn">📄 Export PNG</button>
+            <button onclick="resetZoom()">🔍 Reset Zoom</button>
+            <button onclick="window.close()">✖️ Close</button>
+        </div>
+    </div>
+
+    <script>
+        let channelChoices = null; // Choices.js 인스턴스를 저장할 변수
+
+        // 모든 JS 함수는 이전과 동일하게 유지됩니다.
+        function getUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get('sessionId');
+            const channelsStr = urlParams.get('channels');
+            let channelNames = [];
+            if (channelsStr) { try { channelNames = JSON.parse(decodeURIComponent(channelsStr)); } catch (e) { console.error("URL 채널 파싱 실패:", e); } }
+            return { sessionId, channelNames };
+        }
+        async function fetchChartData(sessionId, channelNames) {
+            try {
+                const response = await fetch(`http://localhost:8000/api/data/${sessionId}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(channelNames)
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `서버 에러: ${response.status}`);
+                }
+                return (await response.json()).data;
+            } catch (error) { console.error('차트 데이터 fetch 에러:', error); throw error; }
+        }
+        function createMultipleCharts(channelData) {
+            const chartGrid = document.getElementById('chartGrid');
+            chartGrid.innerHTML = '';
+            const selector = document.getElementById('channelSelector');
+            selector.innerHTML = '';
+            if (channelChoices) { channelChoices.destroy(); }
+            const channelOptions = [];
+            channelData.forEach((data, index) => {
+                const chartWrapper = document.createElement('div');
+                chartWrapper.className = 'individual-chart-wrapper';
+                const chartDiv = document.createElement('div');
+                chartDiv.id = `chart-${index}`;
+                chartDiv.className = 'individual-chart';
+                chartWrapper.appendChild(chartDiv);
+                chartGrid.appendChild(chartWrapper);
+                const displayName = data.unit ? `${data.name} (${data.unit})` : data.name;
+                const trace = { x: data.timestamps, y: data.values, name: displayName, type: 'scatter', mode: 'lines', line: { width: 1.5 } };
+                const layout = { title: { text: displayName, font: { size: 16 } }, xaxis: { title: 'Time (s)', gridcolor: '#f0f0f0', titlefont: {size: 14}, tickfont: {size: 12} }, yaxis: { title: 'Value', gridcolor: '#f0f0f0', titlefont: {size: 14}, tickfont: {size: 12} }, margin: { t: 50, r: 40, b: 60, l: 70 }, showlegend: false };
+                const config = { responsive: true, editable: true, displayModeBar: true, modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d'] };
+                Plotly.newPlot(chartDiv.id, [trace], layout, config);
+                channelOptions.push({ value: index, label: displayName });
+            });
+            channelChoices = new Choices(selector, {
+                choices: channelOptions, removeItemButton: true, shouldSort: false, placeholder: true, placeholderValue: 'Select channels to control',
+            });
+        }
+        function getSelectedChartIndices() {
+            if (!channelChoices) return null;
+            const selectedItems = channelChoices.getValue(true);
+            if (selectedItems.length === 0) {
+                alert('컨트롤을 적용할 채널을 목록에서 선택하세요. (클릭하여 선택)');
+                return null;
+            }
+            return selectedItems;
+        }
+        function applyAxisRange(axis) {
+            const selectedIndices = getSelectedChartIndices();
+            if (!selectedIndices) return;
+            const minVal = document.getElementById(`${axis}Min`).value;
+            const maxVal = document.getElementById(`${axis}Max`).value;
+            if (minVal !== '' && maxVal !== '' && parseFloat(minVal) >= parseFloat(maxVal)) {
+                alert(`${axis.toUpperCase()}-Axis Min 값은 Max 값보다 작아야 합니다.`); return;
+            }
+            selectedIndices.forEach(index => {
+                const chartDiv = document.getElementById(`chart-${index}`);
+                if (chartDiv) {
+                    const newLayout = JSON.parse(JSON.stringify(chartDiv.layout));
+                    const axisName = `${axis}axis`;
+                    newLayout[axisName].autorange = false;
+                    newLayout[axisName].range = [ minVal === '' ? null : parseFloat(minVal), maxVal === '' ? null : parseFloat(maxVal) ];
+                    Plotly.react(chartDiv, chartDiv.data, newLayout);
+                }
+            });
+        }
+        function resetAxisRange(axis) {
+            const selectedIndices = getSelectedChartIndices();
+            if (!selectedIndices) return;
+            const update = { [`${axis}axis.autorange`]: true };
+            selectedIndices.forEach(index => Plotly.relayout(`chart-${index}`, update));
+        }
+        function resetZoom() {
+            const selectedIndices = getSelectedChartIndices();
+            if (!selectedIndices) return;
+            const update = { 'xaxis.autorange': true, 'yaxis.autorange': true };
+            selectedIndices.forEach(index => Plotly.relayout(`chart-${index}`, update));
+        }
+        function exportSelectedCharts() {
+            const selectedIndices = getSelectedChartIndices();
+            if (!selectedIndices) return;
+            selectedIndices.forEach(index => {
+                const chartDiv = document.getElementById(`chart-${index}`);
+                const channelName = chartDiv.layout.title.text.replace(/[^a-zA-Z0-9]/g, '_');
+                Plotly.downloadImage(chartDiv, { format: 'png', filename: `chart_${channelName}` });
+            });
+        }
+        function showError(message) {
+            const chartGrid = document.getElementById('chartGrid');
+            if(chartGrid) { chartGrid.innerHTML = `<div class="error">❌ Error: ${message}</div>`; }
+        }
+        function exportAllChartsAsOneImage(button) {
+            const originalButtonText = button.textContent;
+            button.textContent = 'Capturing...';
+            button.disabled = true;
+
+            const chartGrid = document.getElementById('chartGrid');
+
+            // html2canvas를 사용하여 차트 그리드 영역을 캡처
+            html2canvas(chartGrid, {
+                scale: 2, // 해상도를 2배로 높여 더 선명한 이미지 생성
+                useCORS: true
+            }).then(canvas => {
+                // 캡처된 canvas를 이미지 파일로 다운로드
+                const image = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = image;
+                a.download = 'All_Charts_Export.png';
+                a.click();
+
+                // 버튼 상태 원상복구
+                button.textContent = originalButtonText;
+                button.disabled = false;
+            }).catch(err => {
+                console.error('oops, something went wrong!', err);
+                alert('An error occurred while capturing the charts.');
+                button.textContent = originalButtonText;
+                button.disabled = false;
+            });
+        }
+        window.onload = async function() {
+            try {
+                const { sessionId, channelNames } = getUrlParams();
+                if (!sessionId || !channelNames || channelNames.length === 0) throw new Error('URL에 필수 정보가 없습니다.');
+                const channelData = await fetchChartData(sessionId, channelNames);
+                if (!channelData || channelData.length === 0) throw new Error('서버에서 데이터를 받지 못했습니다.');
+                createMultipleCharts(channelData);
+            } catch (error) { console.error('차트 초기화 실패:', error); showError(error.message); }
+        };
+        window.onresize = function() {
+            document.querySelectorAll('.individual-chart').forEach(chartDiv => {
+                if(chartDiv.id && document.getElementById(chartDiv.id)) { Plotly.Plots.resize(chartDiv.id); }
+            });
+        };
+        
+    </script>
+</body>
+</html>

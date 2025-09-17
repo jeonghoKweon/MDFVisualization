@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 MDF 파일 그래프 뷰어_Jeongho Kwon (Backend 연동)</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+
+        .backend-status {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .backend-status h3 {
+            margin-bottom: 5px;
+            font-size: 1.1em;
+        }
+
+        .backend-status p {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .upload-section {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .upload-area {
+            border: 2px dashed #bdc3c7;
+            border-radius: 10px;
+            padding: 40px;
+            transition: all 0.3s ease;
+        }
+
+        .upload-area:hover {
+            border-color: #3498db;
+            background-color: #f8f9fa;
+        }
+
+        .upload-area.dragover {
+            border-color: #2ecc71;
+            background-color: #e8f5e8;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .upload-button {
+            background: #3498db;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .upload-button:hover {
+            background: #2980b9;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .main-content {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .channel-selector {
+            margin-bottom: 20px;
+        }
+
+        .channel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .channel-selector h3 {
+            margin: 0;
+            color: #2c3e50;
+        }
+
+        .reset-button {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .reset-button:hover {
+            background: #c0392b;
+        }
+
+        .reset-button:active {
+            transform: translateY(1px);
+        }
+
+        .csv-export-button {
+            background: #27ae60;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .csv-export-button:hover {
+            background: #2ecc71;
+        }
+
+        .csv-export-button:active {
+            transform: translateY(1px);
+        }
+
+        .csv-export-button:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+
+        .channel-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+
+        .channel-item {
+            display: flex;
+            align-items: center;
+            padding: 5px;
+            font-size: 12px;
+        }
+
+        .channel-item input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        .channel-item label {
+            cursor: pointer;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* 컴팩트한 페이지네이션 스타일 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 2px;
+            margin: 15px 0;
+        }
+
+        .pagination button, .pagination span {
+            font-size: 11px;
+            padding: 4px 6px;
+            height: 24px;
+            min-width: 24px;
+            border: 1px solid #dee2e6;
+            border-radius: 2px;
+            cursor: pointer;
+            background: white;
+            color: #007bff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .pagination button:hover {
+            background-color: #f8f9fa;
+        }
+
+        .pagination .prev-next {
+            background: #f8f9fa;
+            color: #6c757d;
+            padding: 4px 8px;
+        }
+
+        .pagination .current {
+            background: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+
+        .pagination .dots {
+            border: none;
+            background: none;
+            color: #6c757d;
+            cursor: default;
+        }
+
+        .chart-container {
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: white;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 5px 5px 0;
+        }
+
+        .error-box {
+            background: #ffebee;
+            border-left: 4px solid #f44336;
+            color: #c62828;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 5px 5px 0;
+        }
+
+        .success-box {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            color: #2e7d32;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 5px 5px 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            margin-left: 10px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* 파일 정보 섹션 스타일 */
+        .file-info-section {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .file-info-content h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+        }
+
+        .file-details {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .file-detail-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .file-detail-item:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #2c3e50;
+            min-width: 100px;
+            margin-right: 15px;
+        }
+
+        .detail-value {
+            color: #34495e;
+            word-break: break-all;
+            flex: 1;
+        }
+
+        /* 정보 패널 스타일 */
+        .info-panel {
+            height: 100%;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .info-panel .info-box {
+            width: 100%;
+        }
+
+        .info-panel .info-box h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+
+        .info-panel .info-box ol,
+        .info-panel .info-box ul {
+            color: #34495e;
+            line-height: 1.6;
+        }
+
+        .info-panel .info-box ol li,
+        .info-panel .info-box ul li {
+            margin-bottom: 5px;
+        }
+
+        .requirement-note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 5px 5px 0;
+            font-size: 14px;
+        }
+
+        .requirement-note strong {
+            color: #856404;
+        }
+
+        /* 차트 유형 선택 섹션 스타일 */
+        .chart-type-section {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .chart-type-content h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .chart-type-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .chart-type-option {
+            position: relative;
+        }
+
+        .chart-type-option input[type="radio"] {
+            opacity: 0;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        .chart-type-label {
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .chart-type-label:hover {
+            border-color: #3498db;
+            background: #e3f2fd;
+        }
+
+        .chart-type-option input[type="radio"]:checked + .chart-type-label {
+            border-color: #3498db;
+            background: #e3f2fd;
+            box-shadow: 0 0 10px rgba(52, 152, 219, 0.3);
+        }
+
+        .option-icon {
+            font-size: 2em;
+            margin-right: 15px;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .option-content h4 {
+            color: #2c3e50;
+            margin-bottom: 5px;
+            font-size: 1.1em;
+        }
+
+        .option-content p {
+            color: #6c757d;
+            font-size: 0.9em;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 헤더 -->
+        <div class="header">
+            <h1>📊 MDF File Graph Viewer_Jeongho Kwon</h1>
+            <p><strong>Measurement Data Format (MDF) 파일을 읽고 인터랙티브 그래프로 시각화합니다</strong></p>
+        </div>
+
+        <!-- 백엔드 상태 표시 -->
+        <div class="backend-status">
+            <h3>🚀 Python Backend 연동 버전</h3>
+            <p>실제 MDF 파일을 처리하여 정확한 측정 데이터를 시각화합니다</p>
+        </div>
+
+        <!-- 백엔드 요구사항 안내 -->
+        <div class="requirement-note">
+            <strong>⚠️ 백엔드 서버 실행 필요:</strong> 
+            이 페이지를 사용하기 전에 <code>backend/</code> 디렉터리에서 
+            <code>python main.py</code>를 실행하여 백엔드 서버를 시작하세요. 
+            서버 주소: <code>http://localhost:8000</code>
+        </div>
+
+        <!-- 파일 업로드 영역 -->
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-area" id="uploadArea">
+                <p style="margin-bottom: 20px; font-size: 18px; color: #7f8c8d;">
+                    MDF 파일을 드래그하여 놓거나 클릭하여 선택하세요
+                </p>
+                <input type="file" id="fileInput" accept=".mdf,.mf4" />
+                <button class="upload-button" onclick="document.getElementById('fileInput').click()">
+                    📁 파일 선택
+                </button>
+                <p style="margin-top: 15px; font-size: 14px; color: #95a5a6;">
+                    지원 형식: .mdf, .mf4<br>
+                    <strong>실제 MDF 파일이 백엔드에서 처리됩니다</strong>
+                </p>
+            </div>
+        </div>
+
+        <!-- 선택된 파일 정보 영역 -->
+        <div class="file-info-section hidden" id="fileInfoSection">
+            <div class="file-info-content">
+                <h3>📄 선택된 파일</h3>
+                <div class="file-details">
+                    <div class="file-detail-item">
+                        <span class="detail-label">파일명:</span>
+                        <span class="detail-value" id="fileName">-</span>
+                    </div>
+                    <div class="file-detail-item">
+                        <span class="detail-label">파일 경로:</span>
+                        <span class="detail-value" id="filePath">-</span>
+                    </div>
+                    <div class="file-detail-item">
+                        <span class="detail-label">파일 크기:</span>
+                        <span class="detail-value" id="fileSize">-</span>
+                    </div>
+                    <div class="file-detail-item">
+                        <span class="detail-label">채널 수:</span>
+                        <span class="detail-value" id="channelCount">-</span>
+                    </div>
+                </div>
+                <button class="upload-button" onclick="selectNewFile()" style="margin-top: 15px;">
+                    🔄 다른 파일 선택
+                </button>
+            </div>
+        </div>
+
+        <!-- 차트 유형 선택 영역 -->
+        <div class="chart-type-section hidden" id="chartTypeSection">
+            <div class="chart-type-content">
+                <h3>📊 차트 유형 선택</h3>
+                <p style="margin-bottom: 20px; color: #6c757d;">채널을 선택한 후 원하는 차트 표시 방식을 선택하세요</p>
+                
+                <div class="chart-type-options">
+                    <div class="chart-type-option">
+                        <input type="radio" id="singleChart" name="chartType" value="single" checked>
+                        <label for="singleChart" class="chart-type-label">
+                            <div class="option-icon">📈</div>
+                            <div class="option-content">
+                                <h4>단일 그래프</h4>
+                                <p>모든 채널을 하나의 차트에 표시</p>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <div class="chart-type-option">
+                        <input type="radio" id="multipleCharts" name="chartType" value="multiple">
+                        <label for="multipleCharts" class="chart-type-label">
+                            <div class="option-icon">📊</div>
+                            <div class="option-content">
+                                <h4>복수 그래프</h4>
+                                <p>각 채널을 개별 차트에 표시</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 메인 컨텐츠 -->
+        <div class="controls hidden" id="mainControls">
+            <!-- 사이드바 -->
+            <div class="sidebar">
+                <div class="channel-selector">
+                    <div class="channel-header">
+                        <h3>⚙️ 채널 선택</h3>
+                        <button class="reset-button" id="resetChannelButton" onclick="resetChannelSelection()" title="선택 초기화">
+                            🔄 리셋
+                        </button>
+                    </div>
+                    <input type="text" class="search-box" id="channelSearch" placeholder="채널 검색..." />
+                    
+                    <div id="channelList" class="channel-grid">
+                        <!-- 채널 목록이 여기에 동적으로 생성됩니다 -->
+                    </div>
+                    
+                    <!-- 페이지네이션 -->
+                    <div class="pagination" id="pagination">
+                        <!-- 페이지네이션 버튼들이 여기에 동적으로 생성됩니다 -->
+                    </div>
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <button class="upload-button" id="plotButton" onclick="updateChart()" style="width: 100%; margin-bottom: 10px;">
+                        📊 그래프 그리기 (실제 데이터)
+                    </button>
+                    <button class="csv-export-button" id="csvExportButton" onclick="exportToCSV()" style="width: 100%;">
+                        📄 CSV 내보내기
+                    </button>
+                </div>
+            </div>
+
+            <!-- 메인 컨텐츠 -->
+            <div class="main-content">
+                <div class="info-panel">
+                    <div class="info-box">
+                        <h3>📊 MDF 데이터 시각화 도구</h3>
+                        <p><strong>사용 방법:</strong></p>
+                        <ol style="margin: 10px 0; padding-left: 20px;">
+                            <li>왼쪽에서 원하는 채널들을 선택하세요 (최대 20개)</li>
+                            <li>"그래프 그리기" 버튼을 클릭하세요</li>
+                            <li>새 창에서 인터랙티브 차트를 확인하세요</li>
+                        </ol>
+                        <p><strong>기능:</strong></p>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            <li>실시간 검색 및 필터링</li>
+                            <li>페이지네이션으로 채널 탐색</li>
+                            <li>줌, 팬, 범위 선택 지원</li>
+                            <li>범례 표시 및 토글</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 상태 메시지 영역 -->
+        <div id="messageArea"></div>
+    </div>
+
+    <script src="mdf-viewer-backend.js"></script>
+</body>
+</html>
