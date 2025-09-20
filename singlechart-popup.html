@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📊 MDF Data Visualization - Single Chart</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <title>📊 MDF Data Visualization - Single Chart_Jeongho Kwon</title>
+    <script src="https://cdn.plot.ly/plotly-3.1.0.min.js" charset="utf-8"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8f9fa; color: #333; height: 100vh; display: flex; flex-direction: column; }
@@ -19,7 +19,7 @@
         .chart-controls button { background: #3498db; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-size: 0.9em; cursor: pointer; }
         .chart-controls button:hover { background: #2980b9; }
         .y-axis-setup-btn { background: #6c757d !important; }
-        .y-axis-dropdown { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: white; border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1000; min-width: 500px; max-width: 600px; max-height: 80vh; display: flex; flex-direction: column; }
+        .y-axis-dropdown { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: white; border: 1px solid #e9ecef; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1000; min-width: 700px; max-width: 900px; max-height: 80vh; display: flex; flex-direction: column; }
         .dropdown-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 15px; border-bottom: 1px solid #e9ecef; background: #f8f9fa; }
         .dropdown-header h4 { color: #495057; font-size: 1em; margin: 0; }
         .close-btn { background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 3px; font-size: 0.8em; cursor: pointer; }
@@ -38,13 +38,13 @@
         .range-control-item button:hover { background: #5a6268; }
         .channel-assignment-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f1f1f1; }
         .channel-assignment-item:last-child { border-bottom: none; }
-        .channel-name { font-size: 0.9em; max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .channel-name { font-size: 0.9em; max-width: 450px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .radio-group label { margin: 0 10px 0 3px; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>📊 MDF Data Visualization - Single Chart</h1>
+        <h1>📊 MDF Data Visualization - Single Chart_Jeongho Kwon</h1>
         <p id="headerInfo">Real-time measurement data visualization</p>
     </div>
     <div class="chart-container"><div id="chartDiv"><div class="loading">Loading chart data...</div></div></div>
