@@ -22,6 +22,7 @@ python-multipart==0.0.6   # Multipart form data support for file uploads
 # Data validation and processing (Required)
 pydantic==2.5.0           # Data validation using Python type annotations
 numpy==1.24.3             # Fundamental package for scientific computing
+pandas==2.1.4             # Data manipulation and analysis library for CSV processing
 python-dateutil==2.8.2    # Extensions to the standard Python datetime module
 
 # MDF file processing (Optional but recommended for real MDF files)
@@ -39,7 +40,7 @@ httpx==0.25.2             # HTTP client library for testing API endpoints
 
 # ==================================================================
 # Package Information:
-# - Total required packages: 6 (FastAPI + core dependencies)
+# - Total required packages: 7 (FastAPI + core dependencies + pandas)
 # - Optional MDF processing: 1 (asammdf)
 # - Production tools: 2 (gunicorn + python-dotenv)
 # - Development tools: 3 (pytest + extensions)

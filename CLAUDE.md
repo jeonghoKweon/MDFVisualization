@@ -1,8 +1,8 @@
-# MDF File Viewer Project - Claude Instructions
+# MDF/CSV File Viewer Project - Claude Instructions
 
 ## Project Overview
 
-**MDF File Viewer**는 Measurement Data Format (MDF) 파일을 읽고 인터랙티브 그래프로 시각화하는 웹 애플리케이션입니다.
+**MDF/CSV File Viewer**는 Measurement Data Format (MDF) 파일과 CSV 파일을 읽고 인터랙티브 그래프로 시각화하는 웹 애플리케이션입니다.
 
 ## Architecture
 
@@ -15,18 +15,21 @@
 
 ### Backend (Python FastAPI)
 - **main.py**: FastAPI 서버 메인 애플리케이션
-- **mdf_processor.py**: MDF 파일 처리 로직
+- **mdf_processor.py**: MDF/CSV 파일 처리 로직 (통합된 FileProcessor 클래스)
 - **models.py**: Pydantic 데이터 모델
 - **start_server.py**: 서버 시작 헬퍼 스크립트
-- **requirements.txt**: Python 의존성 목록
+- **requirements.txt**: Python 의존성 목록 (pandas 포함)
 
 ## Key Features
 
-### MDF 파일 처리
-- asammdf 라이브러리를 사용한 실제 MDF 파일 파싱
+### 파일 처리 (MDF/CSV)
+- **MDF 파일**: asammdf 라이브러리를 사용한 실제 MDF 파일 파싱
+- **CSV 파일**: pandas 라이브러리를 사용한 CSV 파일 처리
 - 시뮬레이션 모드 지원 (asammdf 없을 시)
 - 중복 채널명 처리 및 그룹 인덱스 추가
 - 메타데이터 추출 (버전, 측정시간, 지속시간 등)
+- CSV에서 단위 정보 자동 추출 (컬럼명에서 괄호 안의 내용)
+- 첫 번째 컬럼을 시간축으로 자동 감지
 
 ### 웹 인터페이스
 - 드래그 앤 드롭 파일 업로드
@@ -36,7 +39,7 @@
 - CSV 데이터 내보내기
 
 ### API Endpoints
-- `POST /api/upload`: MDF 파일 업로드
+- `POST /api/upload`: MDF/CSV 파일 업로드
 - `GET /api/channels/{session_id}`: 채널 목록 조회
 - `POST /api/data/{session_id}`: 선택된 채널 데이터 조회
 - `POST /api/export/csv/{session_id}`: CSV 내보내기
@@ -53,9 +56,14 @@
 ### Data Models
 ```python
 # 주요 데이터 모델
-ChannelInfo: 채널 메타데이터
+ChannelInfo: 채널 메타데이터 (MDF/CSV 공통)
 ChannelData: 시계열 데이터 (타임스탬프 + 값)
-MDFInfo: 파일 기본 정보
+MDFInfo: 파일 기본 정보 (MDF/CSV 모두 지원)
+
+# 파일 처리 클래스
+FileProcessor: 통합 파일 처리 (MDF/CSV 자동 감지)
+MDFProcessor: MDF 전용 처리
+CSVProcessor: CSV 전용 처리
 ```
 
 ### Performance Considerations
@@ -86,6 +94,7 @@ python main.py  # 또는 python start_server.py
 - python-multipart>=0.0.6
 - pydantic>=2.5.0
 - numpy>=1.24.3
+- pandas>=2.1.4 (CSV 파일 처리용)
 - python-dateutil>=2.8.2
 
 **MDF Processing (Optional):**
@@ -103,10 +112,12 @@ python main.py  # 또는 python start_server.py
 ## Troubleshooting
 
 ### Common Issues
-1. **asammdf 없음**: 시뮬레이션 모드로 자동 전환
+1. **asammdf 없음**: 시뮬레이션 모드로 자동 전환 (MDF 파일만 해당)
 2. **CORS 에러**: 백엔드 서버가 실행 중인지 확인
-3. **파일 업로드 실패**: 파일 형식(.mdf, .mf4) 확인
+3. **파일 업로드 실패**: 파일 형식(.mdf, .mf4, .csv) 확인
 4. **메모리 부족**: 큰 파일의 경우 채널 수 제한
+5. **CSV 인코딩 문제**: UTF-8 인코딩 확인 (한글 컬럼명 등)
+6. **CSV 시간축 인식 실패**: 첫 번째 컬럼이 숫자형인지 확인
 
 ### Debug Mode
 - 브라우저 개발자 도구에서 네트워크 탭 확인

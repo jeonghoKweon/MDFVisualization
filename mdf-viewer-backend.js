@@ -37,7 +37,7 @@ class MDFViewerBackend {
             uploadArea.classList.remove('dragover');
             const files = e.dataTransfer.files;
             if (files.length > 0) {
-                this.loadMDFFile(files[0]);
+                this.loadFile(files[0]);
             }
         });
 
@@ -57,20 +57,20 @@ class MDFViewerBackend {
     async handleFileSelect(event) {
         const file = event.target.files[0];
         if (file) {
-            await this.loadMDFFile(file);
+            await this.loadFile(file);
         }
     }
 
-    async loadMDFFile(file) {
+    async loadFile(file) {
         try {
             this.showMessage('파일을 서버에 업로드하고 처리중입니다...', 'loading');
             
             // 파일 확장자 체크
-            const validExtensions = ['.mdf', '.mf4'];
+            const validExtensions = ['.mdf', '.mf4', '.csv'];
             const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'));
-            
+
             if (!validExtensions.includes(fileExtension)) {
-                throw new Error('지원되지 않는 파일 형식입니다. .mdf 또는 .mf4 파일을 선택하세요.');
+                throw new Error('지원되지 않는 파일 형식입니다. .mdf, .mf4 또는 .csv 파일을 선택하세요.');
             }
 
             // 백엔드로 파일 업로드

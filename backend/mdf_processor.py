@@ -1,4 +1,6 @@
 import os
+import pandas as pd
+import csv
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import numpy as np
@@ -373,5 +375,309 @@ class MDFProcessor:
                 sample_rate=1.0 / time_step
             )
             channel_data.append(data)
-        
+
         return channel_data
+
+
+class CSVProcessor:
+    """CSV 파일 처리 클래스"""
+
+    def __init__(self):
+        pass
+
+    def process_file(self, file_path: str) -> MDFInfo:
+        """CSV 파일 처리 및 기본 정보 추출"""
+        try:
+            # CSV 파일 읽기 (첫 몇 줄만 읽어서 구조 파악)
+            df_sample = pd.read_csv(file_path, nrows=5)
+
+            # 전체 파일 크기 정보
+            file_size = os.path.getsize(file_path)
+
+            # 전체 행 수 계산 (효율적으로)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                row_count = sum(1 for _ in f) - 1  # 헤더 제외
+
+            # 채널 수 (컬럼 수에서 시간축 제외)
+            channel_count = len(df_sample.columns) - 1
+
+            # 측정 시간 추정 (첫 번째 컬럼이 시간이라고 가정)
+            measurement_duration = None
+            measurement_start = None
+
+            if len(df_sample) > 0:
+                try:
+                    # 첫 번째 컬럼을 시간으로 시도
+                    first_col = df_sample.iloc[:, 0]
+                    if pd.api.types.is_numeric_dtype(first_col):
+                        # 숫자형이면 시간으로 가정하고 duration 계산
+                        df_full_time = pd.read_csv(file_path, usecols=[0], nrows=None)
+                        time_values = df_full_time.iloc[:, 0].dropna()
+                        if len(time_values) > 1:
+                            measurement_duration = float(time_values.iloc[-1] - time_values.iloc[0])
+
+                    # 현재 시간을 시작 시간으로 설정
+                    measurement_start = datetime.now()
+                except:
+                    pass
+
+            return MDFInfo(
+                version="CSV",
+                file_size=file_size,
+                channel_count=channel_count,
+                measurement_start=measurement_start,
+                measurement_duration=measurement_duration,
+                measurement_comment=f"CSV file with {row_count} rows, {len(df_sample.columns)} columns ({channel_count} data channels + time axis)",
+                vehicle_identification="",
+                recorder_identification=""
+            )
+
+        except Exception as e:
+            print(f"Error processing CSV file: {e}")
+            # 에러 시 기본값 반환
+            file_size = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+            return MDFInfo(
+                version="CSV",
+                file_size=file_size,
+                channel_count=0,
+                measurement_start=datetime.now(),
+                measurement_duration=0.0,
+                measurement_comment=f"Error processing CSV: {str(e)}",
+                vehicle_identification="",
+                recorder_identification=""
+            )
+
+    def get_channels(self, file_path: str) -> List[ChannelInfo]:
+        """CSV 파일에서 채널 목록 추출"""
+        try:
+            # CSV 파일의 헤더와 샘플 데이터 읽기
+            df = pd.read_csv(file_path, nrows=100)  # 처음 100행만 읽어서 분석
+
+            channels = []
+
+            for i, column in enumerate(df.columns):
+                # 첫 번째 컬럼(시간축)은 채널 목록에서 제외
+                if i == 0:
+                    continue
+
+                try:
+                    col_data = df[column].dropna()
+
+                    # 데이터 타입 결정
+                    if pd.api.types.is_numeric_dtype(col_data):
+                        if pd.api.types.is_integer_dtype(col_data):
+                            data_type = "int64"
+                        else:
+                            data_type = "float64"
+                    else:
+                        data_type = "object"
+
+                    # 최솟값, 최댓값 계산 (숫자형 데이터만)
+                    min_value = None
+                    max_value = None
+                    if pd.api.types.is_numeric_dtype(col_data) and len(col_data) > 0:
+                        try:
+                            min_value = float(col_data.min())
+                            max_value = float(col_data.max())
+                        except:
+                            pass
+
+                    # 샘플 수 (전체 파일의 행 수를 효율적으로 계산)
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        sample_count = sum(1 for _ in f) - 1  # 헤더 제외
+
+                    # 단위 추출 시도 (컬럼명에서 괄호 안의 내용)
+                    unit = ""
+                    description = ""
+
+                    if "(" in column and ")" in column:
+                        # 예: "Temperature (°C)" -> unit = "°C", name = "Temperature"
+                        parts = column.split("(")
+                        if len(parts) > 1:
+                            unit_part = parts[-1].strip(")")
+                            unit = unit_part
+                            name = "(".join(parts[:-1]).strip()
+                            description = f"Column {i+1}: {name}"
+                        else:
+                            name = column
+                            description = f"Column {i+1}: {column}"
+                    else:
+                        name = column
+                        description = f"Column {i+1}: {column}"
+
+                    channel_info = ChannelInfo(
+                        name=name,
+                        unit=unit,
+                        description=description,
+                        sample_count=sample_count,
+                        data_type=data_type,
+                        min_value=min_value,
+                        max_value=max_value
+                    )
+                    channels.append(channel_info)
+
+                except Exception as e:
+                    print(f"Error processing column {column}: {e}")
+                    continue
+
+            return channels
+
+        except Exception as e:
+            print(f"Error getting channels from CSV: {e}")
+            return []
+
+    def get_channel_data(self, file_path: str, channel_names: List[str]) -> List[ChannelData]:
+        """선택된 채널들의 데이터 추출"""
+        try:
+            # CSV 파일 전체 읽기
+            df = pd.read_csv(file_path)
+
+            channel_data = []
+
+            # 시간 컬럼 찾기 (첫 번째 컬럼을 시간으로 가정)
+            time_column = None
+            timestamps = []
+
+            if len(df.columns) > 0:
+                first_col = df.iloc[:, 0]
+                if pd.api.types.is_numeric_dtype(first_col):
+                    time_column = df.columns[0]
+                    timestamps = first_col.fillna(0).tolist()
+
+                # 시간 컬럼이 없으면 인덱스 기반으로 생성
+                if not timestamps:
+                    timestamps = list(range(len(df)))
+
+            for ch_name in channel_names:
+                try:
+                    # 채널명 매칭 (단위가 포함된 경우 처리)
+                    matching_columns = []
+
+                    for col in df.columns:
+                        # 정확히 일치하는 경우
+                        if col == ch_name:
+                            matching_columns.append(col)
+                            break
+                        # 단위가 포함된 컬럼명에서 추출한 이름과 일치하는 경우
+                        elif "(" in col and ")" in col:
+                            clean_name = col.split("(")[0].strip()
+                            if clean_name == ch_name:
+                                matching_columns.append(col)
+                                break
+
+                    if not matching_columns:
+                        # 매칭되는 컬럼이 없으면 빈 데이터로 처리
+                        data = ChannelData(
+                            name=ch_name,
+                            unit="",
+                            timestamps=timestamps if timestamps else [],
+                            values=[],
+                            sample_rate=None
+                        )
+                        channel_data.append(data)
+                        continue
+
+                    actual_column = matching_columns[0]
+                    column_data = df[actual_column].fillna(0)
+
+                    # 값 추출
+                    values = []
+                    if pd.api.types.is_numeric_dtype(column_data):
+                        values = column_data.tolist()
+                    else:
+                        # 문자열 데이터의 경우 숫자로 변환 시도
+                        for val in column_data:
+                            try:
+                                values.append(float(val))
+                            except:
+                                values.append(0.0)
+
+                    # 단위 추출
+                    unit = ""
+                    if "(" in actual_column and ")" in actual_column:
+                        unit_part = actual_column.split("(")[-1].strip(")")
+                        unit = unit_part
+
+                    # 샘플레이트 계산
+                    sample_rate = None
+                    if len(timestamps) > 1 and time_column:
+                        dt = timestamps[1] - timestamps[0]
+                        sample_rate = 1.0 / dt if dt > 0 else None
+
+                    data = ChannelData(
+                        name=ch_name,
+                        unit=unit,
+                        timestamps=timestamps,
+                        values=values,
+                        sample_rate=sample_rate
+                    )
+                    channel_data.append(data)
+
+                except Exception as e:
+                    print(f"Error extracting data for CSV channel {ch_name}: {e}")
+                    # 에러 발생 시 빈 데이터로 처리
+                    data = ChannelData(
+                        name=ch_name,
+                        unit="",
+                        timestamps=timestamps if timestamps else [],
+                        values=[],
+                        sample_rate=None
+                    )
+                    channel_data.append(data)
+
+            return channel_data
+
+        except Exception as e:
+            print(f"Error getting CSV channel data: {e}")
+            return []
+
+
+class FileProcessor:
+    """통합 파일 처리 클래스 (MDF와 CSV 모두 지원)"""
+
+    def __init__(self):
+        self.mdf_processor = MDFProcessor()
+        self.csv_processor = CSVProcessor()
+
+    def detect_file_type(self, file_path: str) -> str:
+        """파일 타입 감지"""
+        file_ext = os.path.splitext(file_path)[1].lower()
+        if file_ext in ['.mdf', '.mf4']:
+            return 'mdf'
+        elif file_ext == '.csv':
+            return 'csv'
+        else:
+            return 'unknown'
+
+    def process_file(self, file_path: str) -> MDFInfo:
+        """파일 타입에 따른 처리"""
+        file_type = self.detect_file_type(file_path)
+
+        if file_type == 'mdf':
+            return self.mdf_processor.process_file(file_path)
+        elif file_type == 'csv':
+            return self.csv_processor.process_file(file_path)
+        else:
+            raise ValueError(f"지원되지 않는 파일 타입입니다: {file_type}")
+
+    def get_channels(self, file_path: str) -> List[ChannelInfo]:
+        """파일 타입에 따른 채널 목록 추출"""
+        file_type = self.detect_file_type(file_path)
+
+        if file_type == 'mdf':
+            return self.mdf_processor.get_channels(file_path)
+        elif file_type == 'csv':
+            return self.csv_processor.get_channels(file_path)
+        else:
+            raise ValueError(f"지원되지 않는 파일 타입입니다: {file_type}")
+
+    def get_channel_data(self, file_path: str, channel_names: List[str]) -> List[ChannelData]:
+        """파일 타입에 따른 채널 데이터 추출"""
+        file_type = self.detect_file_type(file_path)
+
+        if file_type == 'mdf':
+            return self.mdf_processor.get_channel_data(file_path, channel_names)
+        elif file_type == 'csv':
+            return self.csv_processor.get_channel_data(file_path, channel_names)
+        else:
+            raise ValueError(f"지원되지 않는 파일 타입입니다: {file_type}")

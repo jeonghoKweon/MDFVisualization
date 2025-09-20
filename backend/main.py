@@ -8,10 +8,10 @@ from typing import List, Dict, Any
 import json
 import csv
 import io
-from mdf_processor import MDFProcessor
+from mdf_processor import FileProcessor
 from models import ChannelInfo, ChannelData, MDFInfo
 
-app = FastAPI(title="MDF File Viewer API", version="1.0.0")
+app = FastAPI(title="MDF/CSV File Viewer API", version="1.0.0")
 
 # CORS 미들웨어 설정
 app.add_middleware(
@@ -22,8 +22,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# MDF 프로세서 인스턴스
-mdf_processor = MDFProcessor()
+# 통합 파일 프로세서 인스턴스
+file_processor = FileProcessor()
 
 # 임시 파일 저장소 (실제 환경에서는 Redis나 DB 사용 권장)
 uploaded_files: Dict[str, str] = {}
@@ -31,17 +31,17 @@ uploaded_files: Dict[str, str] = {}
 @app.get("/")
 async def root():
     """API 상태 확인"""
-    return {"message": "MDF File Viewer API", "status": "running"}
+    return {"message": "MDF/CSV File Viewer API", "status": "running"}
 
 @app.post("/api/upload")
-async def upload_mdf_file(file: UploadFile = File(...)):
-    """MDF 파일 업로드 및 기본 정보 추출"""
+async def upload_file(file: UploadFile = File(...)):
+    """MDF/CSV 파일 업로드 및 기본 정보 추출"""
     try:
         # 파일 확장자 검증
-        if not file.filename or not file.filename.lower().endswith(('.mdf', '.mf4')):
+        if not file.filename or not file.filename.lower().endswith(('.mdf', '.mf4', '.csv')):
             raise HTTPException(
-                status_code=400, 
-                detail="지원되지 않는 파일 형식입니다. .mdf 또는 .mf4 파일만 지원합니다."
+                status_code=400,
+                detail="지원되지 않는 파일 형식입니다. .mdf, .mf4 또는 .csv 파일만 지원합니다."
             )
         
         # 임시 파일로 저장
@@ -50,8 +50,8 @@ async def upload_mdf_file(file: UploadFile = File(...)):
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
         
-        # MDF 파일 처리
-        mdf_info = mdf_processor.process_file(tmp_file_path)
+        # 파일 처리 (MDF 또는 CSV)
+        file_info = file_processor.process_file(tmp_file_path)
         
         # 파일 정보를 메모리에 저장 (세션 ID 생성)
         session_id = os.path.basename(tmp_file_path)
@@ -60,7 +60,7 @@ async def upload_mdf_file(file: UploadFile = File(...)):
         return {
             "session_id": session_id,
             "filename": file.filename,
-            "file_info": mdf_info.dict(),
+            "file_info": file_info.dict(),
             "message": f"파일 '{file.filename}'을 성공적으로 처리했습니다."
         }
         
@@ -75,7 +75,7 @@ async def get_channels(session_id: str):
             raise HTTPException(status_code=404, detail="세션을 찾을 수 없습니다.")
         
         file_path = uploaded_files[session_id]
-        channels = mdf_processor.get_channels(file_path)
+        channels = file_processor.get_channels(file_path)
         
         return {
             "session_id": session_id,
@@ -100,8 +100,8 @@ async def get_channel_data(session_id: str, channel_names: List[str]):
             )
         
         file_path = uploaded_files[session_id]
-        channel_data = mdf_processor.get_channel_data(file_path, channel_names)
-        
+        channel_data = file_processor.get_channel_data(file_path, channel_names)
+
         return {
             "session_id": session_id,
             "data": [data.dict() for data in channel_data],
@@ -125,7 +125,7 @@ async def export_csv(session_id: str, channel_names: List[str]):
             )
         
         file_path = uploaded_files[session_id]
-        channel_data = mdf_processor.get_channel_data(file_path, channel_names)
+        channel_data = file_processor.get_channel_data(file_path, channel_names)
         
         # CSV 데이터 생성
         output = io.StringIO()
